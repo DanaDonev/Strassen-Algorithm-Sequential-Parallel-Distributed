@@ -1,9 +1,11 @@
-
 import mpi.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
+public class StrassenAlgorithmDAv2 extends MatrixOperations implements HelpersDA {
 
     private static final double MEMORY_SAFETY_THRESHOLD = 0.9;
     private static final long MIN_FREE_MEMORY_MB = 50;
@@ -34,9 +36,9 @@ public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
             System.err.printf("Estimated operation memory: %.2f MB%n", estimatedMemoryNeeded / (1024.0 * 1024.0));
             System.err.printf("Memory threshold: %.0f%% (matching parallel version)%n", MEMORY_SAFETY_THRESHOLD * 100);
         } else {
-           // System.out.printf("Process memory check passed: %.2f MB available, %.2f MB required (%.0f%% threshold)%n",
+            // System.out.printf("Process memory check passed: %.2f MB available, %.2f MB required (%.0f%% threshold)%n",
             //        availableMemory / (1024.0 * 1024.0), requiredMemory / (1024.0 * 1024.0),
-             //       MEMORY_SAFETY_THRESHOLD * 100);
+            //       MEMORY_SAFETY_THRESHOLD * 100);
         }
 
         return hasEnoughMemory;
@@ -48,7 +50,7 @@ public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
         // Total: 3 (n x n) and 15 (n/2 x n/2) = 6.75 (n x n)
         long matrixSize = (long) n * n * 4;
 
-        return (long)6.75 * matrixSize;
+        return (long) 6.75 * matrixSize;
     }
 
     private void reportMemoryStatus(String context) {
@@ -65,7 +67,7 @@ public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
     }
 
     public static void main(String[] args) throws Exception {
-        StrassenAlgorithmDA instance = new StrassenAlgorithmDA();
+        StrassenAlgorithmDAv2 instance = new StrassenAlgorithmDAv2();
         instance.runDistributed(args);
     }
 
@@ -280,14 +282,33 @@ public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
 
     private int[][][] collectResults(int N, int[] taskToWorker) throws Exception {
         int[][][] M = new int[7][N / 2][N / 2];
+//
+//        for (int task = 1; task <= 7; task++) {
+//            int worker = taskToWorker[task];
+//            int[] resultFlat = new int[N / 2 * N / 2];
+//            int expectedTag = 3000 + task;  // Simple: tag = 3000 + task number
+//            MPI.COMM_WORLD.Recv(resultFlat, 0, N / 2 * N / 2, MPI.INT, worker, expectedTag);
+//            //M[task - 1] = HelpersDA.unflatten(resultFlat, N / 2);
+//            //System.out.printf("Collected result for task %d from worker %d\n", task, taskToWorker[task]);
+//        }
+        Request[] recvRequests = new Request[7];
+        int[][] flatResults = new int[7][N / 2 * N / 2];
 
         for (int task = 1; task <= 7; task++) {
             int worker = taskToWorker[task];
-            int[] resultFlat = new int[N / 2 * N / 2];
-            int expectedTag = 3000 + task;  // Simple: tag = 3000 + task number
-            MPI.COMM_WORLD.Recv(resultFlat, 0, N / 2 * N / 2, MPI.INT, worker, expectedTag);
-            M[task - 1] = HelpersDA.unflatten(resultFlat, N / 2);
-            //System.out.printf("Collected result for task %d from worker %d\n", task, taskToWorker[task]);
+            int expectedTag = 3000 + task;
+
+            flatResults[task - 1] = new int[N / 2 * N / 2];
+            recvRequests[task - 1] = MPI.COMM_WORLD.Irecv(
+                    flatResults[task - 1], 0, flatResults[task - 1].length,
+                    MPI.INT, worker, expectedTag
+            );
+        }
+
+        Request.Waitall(recvRequests);
+
+        for (int task = 1; task <= 7; task++) {
+            M[task - 1] = HelpersDA.unflatten(flatResults[task - 1], N / 2);
         }
 
         return M;
@@ -315,14 +336,25 @@ public class StrassenAlgorithmDA extends MatrixOperations implements HelpersDA {
                 int task = taskBuf[0];
                 receivedTasks.add(task);
 
+                Request[] recvRequests = new Request[4];
+                int[][] flat = new int[4][N / 2 * N / 2];
+
                 // Now receive matrices (4 parts)
                 int[][][] parts = new int[4][N / 2][N / 2];
                 for (int j = 0; j < 4; j++) {
                     int matrixTag = 1000 + rank * 100 + (tag - 200 - rank * 10) * 10 + j;
-                    int[] flat = new int[N / 2 * N / 2];
-                    MPI.COMM_WORLD.Recv(flat, 0, flat.length, MPI.INT, ROOT, matrixTag);
-                    parts[j] = HelpersDA.unflatten(flat, N / 2);
+                    //int[] flat = new int[N / 2 * N / 2];
+                    MPI.COMM_WORLD.Irecv(flat[j], 0, flat[j].length, MPI.INT, ROOT, matrixTag);
+                    //parts[j] = HelpersDA.unflatten(flat, N / 2);
                 }
+
+                // Wait for all 4 matrices to arrive
+                Request.Waitall(recvRequests);
+
+                for (int j = 0; j < 4; j++) {
+                    parts[j] = HelpersDA.unflatten(flat[j], N / 2);
+                }
+
 
                 int[][] result = computeStrassenTask(task, parts);
 

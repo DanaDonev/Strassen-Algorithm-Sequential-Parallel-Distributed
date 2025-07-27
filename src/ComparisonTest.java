@@ -15,7 +15,7 @@ public class ComparisonTest {
 
         String mode = args[0].toLowerCase();
         String[] modesToRun = switch (mode) {
-            case "all" -> new String[] {"sequential", "parallel", "distributed"};
+            case "all" -> new String[] {"sequential", "parallel", "distributed"}; //"sequential",
             default -> new String[] {mode};
         };
 
@@ -69,10 +69,10 @@ public class ComparisonTest {
                         }
                         break;
                         case "distributed": {
-                            //System.out.println("Number of processes: " + String.valueOf(numProcesses));
+                            System.out.println("Number of processes: " + String.valueOf(numProcesses));
                             ProcessBuilder pb = new ProcessBuilder(
                                     //mpjrun.bat -np <num> -cp <classpath> <MainClass> <args...>
-                                    "mpjrun.bat", "-np", String.valueOf(numProcesses),
+                                    "mpjrun.bat", "-Xmx32G", "-np", String.valueOf(numProcesses),
                                     "-cp", "out;C:/Program Files/mpj-v0_44/lib/mpj.jar", "StrassenAlgorithmDA",
                                     Integer.toString(size)
                             );
@@ -119,6 +119,7 @@ public class ComparisonTest {
                             }
 
                             time = distime;
+
                         }
                         break;
                         default:
@@ -128,6 +129,8 @@ public class ComparisonTest {
 
                     totalTime += time;
                     System.out.printf("Run %d took %d ms\n", i + 1, time / 1_000_000);
+
+                    System.gc(); // Encourage GC between matrix multiplication runs
                 }
 
                 avgTime = totalTime / 3;
@@ -149,7 +152,7 @@ public class ComparisonTest {
                 case "sequential" -> "results/seq_results.csv";
                 case "parallel" -> "results/par_results.csv";
                 case "distributed" -> "results/dist_results.csv";
-                case "all" -> "results/results.csv";
+                case "all" -> "results/all_results.csv";
                 default -> "results/unknown.csv";
             };
 
