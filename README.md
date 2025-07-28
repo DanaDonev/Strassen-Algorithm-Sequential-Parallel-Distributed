@@ -84,7 +84,7 @@ java -Xmx32G -cp out ComparisonTest all 4
     - `results/seq_results.csv`
     - `results/par_results.csv`
     - `results/dist_results.csv`
-    - `results/results.csv` (for mode `all`)
+    - `results/all_results.csv`
 - Stops benchmarking a mode if it takes longer than 10 minutes
 
 ---
@@ -93,7 +93,7 @@ java -Xmx32G -cp out ComparisonTest all 4
 
 - **Memory Adaptive**: All versions include memory checking to prevent OutOfMemoryError
 - **Hardware Adaptive**: Parallel version uses available CPU cores, distributed version supports any number of processes
-- **Random Matrix Generation**: Uses random matrices for testing
+- **Random Matrix Generation**: Uses random matrices for testing with entries from 1 to 10
 - **Performance Monitoring**: Execution time measurement and memory usage reporting
 
 --- 
